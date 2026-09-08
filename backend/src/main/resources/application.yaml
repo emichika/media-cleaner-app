@@ -4,9 +4,9 @@ spring:
 
   # 🐳 MySQLへの接続設定
   datasource:
-    url: jdbc:mysql://localhost:3306/mydatabase
+    url: jdbc:mysql://localhost:3306/mediacleaner
     username: root
-    password: root # ※もしパスワードを別名に変えていたらそこだけ書き換えてください
+    password: mediacleaner # ※もしパスワードを別名に変えていたらそこだけ書き換えてください
 
   # ⚡ データベースを自動で組み立てる魔法の設定
   jpa:

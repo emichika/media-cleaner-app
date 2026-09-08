@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.security.MessageDigest;
 import java.util.Date;
 
 @Slf4j
@@ -14,28 +16,51 @@ import java.util.Date;
 public class MediaService {
 
     /**
-     * 画像ファイルからEXIFの撮影日時を抜き出すメソッド
+     * Extracts the photo creation date from the EXIF metadata.
      */
     public Date getPhotoCreationDate(File file) {
         try {
-            // ファイルのメタデータ（EXIFなど）を丸ごと読み込む
             Metadata metadata = ImageMetadataReader.readMetadata(file);
-
-            // EXIFの中の「撮影日時」が保管されているディレクトリを取得
             ExifSubIFDDirectory directory = metadata.getFirstDirectoryOfType(ExifSubIFDDirectory.class);
 
             if (directory != null) {
-                // 撮影日時（Original Date/Time）を抜き出す
                 Date date = directory.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
                 if (date != null) {
-                    log.info("撮影日時の抽出に成功しました: {}", date);
                     return date;
                 }
             }
-            log.warn("EXIFタグ内に撮影日時が見つかりませんでした。");
+            log.warn("[WARN] Original date/time not found in EXIF tags: {}", file.getName());
         } catch (Exception e) {
-            log.error("画像の解析中にエラーが発生しました: ", e);
+            log.error("[ERROR] Failed to analyze image metadata: ", e);
         }
         return null;
+    }
+
+    /**
+     * Calculates the SHA-256 hash value from the file content.
+     */
+    public String calculateFileHash(File file) {
+        try (FileInputStream fis = new FileInputStream(file)) {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] byteArray = new byte[1024];
+            int bytesCount;
+
+            while ((bytesCount = fis.read(byteArray)) != -1) {
+                digest.update(byteArray, 0, bytesCount);
+            }
+
+            byte[] bytes = digest.digest();
+            StringBuilder sb = new StringBuilder();
+            for (byte b : bytes) {
+                sb.append(String.format("%02x", b));
+            }
+
+            String hash = sb.toString();
+            log.info("[SUCCESS] Calculated file hash: {}", hash);
+            return hash;
+        } catch (Exception e) {
+            log.error("[ERROR] Failed to calculate file hash: ", e);
+            return null;
+        }
     }
 }
