@@ -1,7 +1,7 @@
 package com.emichika.mediacleaner;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -10,13 +10,12 @@ import java.util.Optional;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor // ★Lombokを追加
 public class DuplicateCheckService {
 
-    @Autowired
-    private MediaService mediaService;
-
-    @Autowired
-    private MediaFileRepository mediaFileRepository;
+    // ★@Autowiredを消して、finalをつけます
+    private final MediaService mediaService;
+    private final MediaFileRepository mediaFileRepository;
 
     /**
      * Checks if the file is a duplicate. Saves to DB if new, skips if duplicate.

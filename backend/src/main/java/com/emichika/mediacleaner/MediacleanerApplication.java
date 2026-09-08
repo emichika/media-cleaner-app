@@ -1,6 +1,6 @@
 package com.emichika.mediacleaner;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -9,10 +9,11 @@ import org.springframework.context.annotation.Bean;
 import java.io.File;
 
 @SpringBootApplication
+@RequiredArgsConstructor // ★Lombokが推奨されるコンストラクタを自動生成します
 public class MediacleanerApplication {
 
-	@Autowired
-	private DuplicateCheckService duplicateCheckService;
+	// ★finalをつけることで、安全に自動で注入（インジェクション）されます
+	private final DuplicateCheckService duplicateCheckService;
 
 	public static void main(String[] args) {
 		SpringApplication.run(MediacleanerApplication.class, args);
