@@ -27,20 +27,39 @@ function App() {
       const file = files[0];
       setFileName(file.name);
       
-      // ⚠️ 将来ここにJava（バックエンド）へファイルを送信する通信処理を書きます！
-      // 今回は画面のテスト用に、ランダムに「新規保存」か「重複検知」になるシミュレーションを走らせます
-      simulateBackendCheck(file.name);
+      // ⚡Javaのバックエンド窓口へ本物の写真を送信する処理
+      uploadFileToBackend(file);
     }
   };
 
-  // Javaとの通信を模した実験用シミュレーター
-  const simulateBackendCheck = (name) => {
+  // ⚡Javaのバックエンド窓口へ本物の写真を送信する処理
+  const uploadFileToBackend = async (file) => {
     setUploadStatus('checking');
-    setTimeout(() => {
-      const isDuplicate = Math.random() > 0.5;
-      setUploadStatus(isDuplicate ? 'duplicate' : 'success');
-    }, 1200);
+
+    // 宅急便の段ボール（FormData）を作って、写真を中に詰める
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      // 🚀 Javaの窓口へ向けてインターネット経由で発進！
+      const response = await fetch('http://localhost:8080/api/media/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // ひとまず通信が成功したらSuccess画面にする
+        setUploadStatus('success');
+      } else {
+        setUploadStatus('error');
+      }
+    } catch (error) {
+      console.error('通信エラーが発生しました:', error);
+      setUploadStatus('error');
+    }
   };
+
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-6" style={{ fontFamily: 'sans-serif' }}>
