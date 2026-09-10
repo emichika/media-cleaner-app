@@ -13,3 +13,7 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true # 実行されたSQLを黒い画面（ログ）に見せる設定
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
