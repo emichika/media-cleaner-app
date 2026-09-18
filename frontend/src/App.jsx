@@ -49,8 +49,8 @@ function App() {
 
       if (response.ok) {
         const data = await response.json();
-        // ひとまず通信が成功したらSuccess画面にする
-        setUploadStatus('success');
+        // ⚡Javaから届いた本物のステータス（data.status = 'success' または 'duplicate'）を画面にセット！
+        setUploadStatus(data.status); 
       } else {
         setUploadStatus('error');
       }
@@ -92,30 +92,46 @@ function App() {
 
         {/* 状態表示（ステータスカード） */}
         {uploadStatus && (
-          <div className="mt-4 p-4 rounded-xl border bg-slate-900 border-slate-700">
+          <div 
+            style={{
+              // ⚡状態（success/duplicate/error）に応じて、カードの背景色と枠線の色を自動で100%切り替える魔法のスイッチ
+              backgroundColor: 
+                uploadStatus === 'checking' ? '#312e81' : // 濃い青
+                uploadStatus === 'success' ? '#064e3b' :    // 濃い緑
+                uploadStatus === 'duplicate' ? '#78350f' :  // 濃いオレンジ（黄色）
+                '#7f1d1d',                                  // 赤（エラー）
+              borderColor: 
+                uploadStatus === 'checking' ? '#6366f1' : 
+                uploadStatus === 'success' ? '#10b981' : 
+                uploadStatus === 'duplicate' ? '#f59e0b' : 
+                '#ef4444',
+              transition: 'all 0.3s ease'
+            }}
+            className="mt-4 p-5 rounded-xl border"
+          >
             {uploadStatus === 'checking' && (
-              <div className="flex items-center space-x-3 text-indigo-400">
+              <div className="flex items-center space-x-3 text-indigo-300">
                 <RefreshCw className="w-5 h-5 animate-spin" />
                 <span className="text-sm font-medium">Javaバックエンドで重複チェック中...</span>
               </div>
             )}
 
             {uploadStatus === 'success' && (
-              <div className="flex items-center space-x-3 text-emerald-400">
+              <div className="flex items-center space-x-3 text-emerald-300">
                 <CheckCircle className="w-5 h-5" />
                 <div>
                   <p className="text-sm font-bold">[NEW FILE] 重複はありません！</p>
-                  <p className="text-xs text-slate-400">{fileName} をMySQLに新規登録しました。</p>
+                  <p className="text-xs text-emerald-200 mt-1">{fileName} をMySQLに新規登録しました。</p>
                 </div>
               </div>
             )}
 
             {uploadStatus === 'duplicate' && (
-              <div className="flex items-center space-x-3 text-amber-400">
+              <div className="flex items-center space-x-3 text-amber-300">
                 <ShieldAlert className="w-5 h-5" />
                 <div>
                   <p className="text-sm font-bold">[DUPLICATE DETECTED] 重複を検知しました！</p>
-                  <p className="text-xs text-slate-400">{fileName} はすでにデータベースに存在するためスキップします。</p>
+                  <p className="text-xs text-amber-200 mt-1">{fileName} はすでにデータベースに存在するためスキップします。</p>
                 </div>
               </div>
             )}
