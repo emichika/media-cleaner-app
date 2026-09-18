@@ -14,7 +14,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/media")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*", allowedHeaders = "*") // ⚡Reactからの通信を絶対に弾かないための最強の許可証
+@CrossOrigin(origins = "*", allowedHeaders = "*")
 public class MediaController {
 
     private final DuplicateCheckService duplicateCheckService;
@@ -24,24 +24,21 @@ public class MediaController {
      */
     @PostMapping("/upload")
     public ResponseEntity<Map<String, Object>> uploadFile(@RequestParam("file") MultipartFile multipartFile) {
-        // ★確実にログが出るように、メソッドの最優先の1行目に配置しました！
         log.info("[API] Received upload request from frontend: {}", multipartFile.getOriginalFilename());
 
         Map<String, Object> response = new HashMap<>();
         try {
-            // 1. 画面から送られてきたデータを、Javaが解析できる一時的な本物のファイルに変換
             File tempFile = File.createTempFile("upload-", multipartFile.getOriginalFilename());
             multipartFile.transferTo(tempFile);
 
-            // 2. 重複チェックサービスを呼び出す
-            duplicateCheckService.processMediaFile(tempFile);
+            // 1. ⚡サービスを実行して、本物の判定結果（"success" か "duplicate"）を受け取る！
+            String resultStatus = duplicateCheckService.processMediaFile(tempFile);
 
-            // 3. 一時ファイルを綺麗にお掃除
             tempFile.delete();
 
-            // 4. 成功のお返事をReactへ返す
-            response.put("status", "success");
-            response.put("message", "File processed successfully");
+            // 2. ⚡Reactがそのまま使えるように、結果のステータスをレスポンスにガチッと詰め込む！
+            response.put("status", resultStatus);
+            response.put("message", "File processed with status: " + resultStatus);
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {

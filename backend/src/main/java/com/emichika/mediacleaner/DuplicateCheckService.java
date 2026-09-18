@@ -10,24 +10,24 @@ import java.util.Optional;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor // ★Lombokを追加
+@RequiredArgsConstructor
 public class DuplicateCheckService {
 
-    // ★@Autowiredを消して、finalをつけます
     private final MediaService mediaService;
     private final MediaFileRepository mediaFileRepository;
 
     /**
      * Checks if the file is a duplicate. Saves to DB if new, skips if duplicate.
+     * @return "success" if new registration, "duplicate" if already exists.
      */
-    public void processMediaFile(File file) {
+    public String processMediaFile(File file) { // 👈 void から String に変更！
         log.info("------------------------------------------------------");
         log.info("[START] Analyzing file: {}", file.getName());
 
         String fileHash = mediaService.calculateFileHash(file);
         if (fileHash == null) {
             log.error("[ERROR] Canceled processing due to file analysis failure.");
-            return;
+            return "error"; // 👈 エラーの時は error を返す
         }
 
         Optional<MediaFile> existingFile = mediaFileRepository.findByFileHash(fileHash);
@@ -38,6 +38,8 @@ public class DuplicateCheckService {
             log.warn("   -> Original File Name: {}", dbFile.getFileName());
             log.warn("   -> Registered ID: {}", dbFile.getId());
             log.info("[RESULT] File skipped.");
+            log.info("------------------------------------------------------");
+            return "duplicate"; // 👈 ★重複していたら "duplicate" を返す！
         } else {
             log.info("[NEW FILE] No duplicates found. Registering to the database.");
 
@@ -50,7 +52,8 @@ public class DuplicateCheckService {
 
             MediaFile saved = mediaFileRepository.save(newMediaFile);
             log.info("[SUCCESS] Saved to MySQL. Assigned ID: {}", saved.getId());
+            log.info("------------------------------------------------------");
+            return "success"; // 👈 ★新規登録できたら "success" を返す！
         }
-        log.info("------------------------------------------------------");
     }
 }
