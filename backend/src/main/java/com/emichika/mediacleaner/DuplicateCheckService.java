@@ -110,7 +110,7 @@ public class DuplicateCheckService {
                 MediaFile saved = mediaFileRepository.save(newMediaFile);
                 log.info("[SUCCESS] Saved to MySQL. Assigned ID: {}", saved.getId());
                 log.info("------------------------------------------------------");
-                return "success";
+                return finalFileName;
 
             } catch (Exception e) {
                 log.error("[ERROR] Failed to rename and save new file: ", e);
