@@ -8,6 +8,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Optional;
 
@@ -20,8 +21,9 @@ public class DuplicateCheckService {
     private final MediaFileRepository mediaFileRepository;
 
     /**
-     * Checks if the file is a duplicate. Saves to DB if new, moves to 'duplicates' folder if duplicate.
-     * @return "success" if new, "duplicate" if moved to duplicate folder.
+     * Checks if the file is a duplicate.
+     * Moves to 'duplicates' if duplicate, renames with yyyyMMddHHmmss and auto-sequence if new.
+     * @return "success" if new, "duplicate" if moved.
      */
     public String processMediaFile(File file) {
         log.info("------------------------------------------------------");
@@ -39,21 +41,14 @@ public class DuplicateCheckService {
             MediaFile dbFile = existingFile.get();
             log.warn("[DUPLICATE DETECTED] This image already exists in the database. (ID: {})", dbFile.getId());
 
-            // ⚡【物理お掃除機能】重複ファイルを「duplicates」フォルダへ自動移動させる
             try {
-                // 1. 写真が置いてある親フォルダの場所を取得
                 String parentDir = file.getParent();
-
-                // 2. その中に「duplicates」という名前の移動先フォルダの住所を作る
                 Path duplicateDir = Path.of(parentDir, "duplicates");
-
-                // 3. フォルダがまだパソコン内になければ、Javaが自動で作成する
                 if (!Files.exists(duplicateDir)) {
                     Files.createDirectories(duplicateDir);
                     log.info("[FOLDER CREATED] Created duplicates directory at: {}", duplicateDir);
                 }
 
-                // 4. 重複ファイルを「duplicates/写真名.jpg」へシュッと移動！
                 Path targetPath = duplicateDir.resolve(file.getName());
                 Files.move(file.toPath(), targetPath, StandardCopyOption.REPLACE_EXISTING);
 
@@ -66,19 +61,61 @@ public class DuplicateCheckService {
                 return "error";
             }
         } else {
-            log.info("[NEW FILE] No duplicates found. Registering to the database.");
+            log.info("[NEW FILE] No duplicates found. Proceeding with auto-rename.");
 
+            // 1. 撮影日時を抜き出す
             Date shotAt = mediaService.getPhotoCreationDate(file);
+            String baseFileName;
+            String extension = "";
 
-            MediaFile newMediaFile = new MediaFile();
-            newMediaFile.setFileName(file.getName());
-            newMediaFile.setFileHash(fileHash);
-            newMediaFile.setShotAt(shotAt);
+            // ファイル名から拡張子（.jpgなど）を切り離す
+            String originalName = file.getName();
+            int dotIndex = originalName.lastIndexOf('.');
+            if (dotIndex >= 0) {
+                extension = originalName.substring(dotIndex); // 例: ".jpg"
+            }
 
-            MediaFile saved = mediaFileRepository.save(newMediaFile);
-            log.info("[SUCCESS] Saved to MySQL. Assigned ID: {}", saved.getId());
-            log.info("------------------------------------------------------");
-            return "success";
+            // 2. ⚡リネームのベース名を「yyyyMMddHHmmss」にする（無ければ元の名前をそのまま使用）
+            if (shotAt != null) {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
+                baseFileName = sdf.format(shotAt); // 例: "20050228124729"
+            } else {
+                log.warn("[WARN] Could not determine creation date. Using original name as base.");
+                baseFileName = dotIndex >= 0 ? originalName.substring(0, dotIndex) : originalName;
+            }
+
+            try {
+                String parentDir = file.getParent();
+                String finalFileName = baseFileName + extension;
+                Path targetPath = Path.of(parentDir, finalFileName);
+
+                // 3. ⚡【安全連番ループ機能】もし同名ファイルがすでに存在する場合、空く番号（_1, _2...）を探す
+                int count = 1;
+                while (Files.exists(targetPath)) {
+                    finalFileName = baseFileName + "_" + count + extension; // 例: "20050228124729_1.jpg"
+                    targetPath = Path.of(parentDir, finalFileName);
+                    count++;
+                }
+
+                // 実際にパソコンの物理ファイルの名前を書き換える
+                Files.move(file.toPath(), targetPath);
+                log.info("[FILE RENAMED] Successfully renamed file to: {}", finalFileName);
+
+                // MySQLへは「連番を考慮した最終的な新しい名前」で保存！
+                MediaFile newMediaFile = new MediaFile();
+                newMediaFile.setFileName(finalFileName);
+                newMediaFile.setFileHash(fileHash);
+                newMediaFile.setShotAt(shotAt);
+
+                MediaFile saved = mediaFileRepository.save(newMediaFile);
+                log.info("[SUCCESS] Saved to MySQL. Assigned ID: {}", saved.getId());
+                log.info("------------------------------------------------------");
+                return "success";
+
+            } catch (Exception e) {
+                log.error("[ERROR] Failed to rename and save new file: ", e);
+                return "error";
+            }
         }
     }
 }
