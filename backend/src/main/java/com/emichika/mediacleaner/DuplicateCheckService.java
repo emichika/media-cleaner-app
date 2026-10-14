@@ -21,13 +21,25 @@ public class DuplicateCheckService {
     private final MediaFileRepository mediaFileRepository;
 
     /**
-     * Checks if the file is a duplicate.
-     * Moves to 'duplicates' if duplicate, renames with yyyyMMddHHmmss and auto-sequence if new.
-     * @return "success" if new, "duplicate" if moved.
+     * Checks if the file is a duplicate or already formatted.
+     * Moves to 'duplicates' if duplicate, renames if new, skips if already formatted.
      */
     public String processMediaFile(File file) {
         log.info("------------------------------------------------------");
         log.info("[START] Analyzing file: {}", file.getName());
+
+        // ファイル名から拡張子を切り離す
+        String originalName = file.getName();
+        int dotIndex = originalName.lastIndexOf('.');
+        String baseName = dotIndex >= 0 ? originalName.substring(0, dotIndex) : originalName;
+        String extension = dotIndex >= 0 ? originalName.substring(dotIndex) : "";
+
+        // ⚡【新仕様】もしすでにファイル名が「数字14桁（yyyyMMddHHmmss）」の形式なら、リネーム不要として大至急スキップ！
+        if (baseName.matches("^\\d{14}$")) {
+            log.info("[SKIP] File name '{}' is already formatted as yyyyMMddHHmmss. Skipping processing.", originalName);
+            log.info("------------------------------------------------------");
+            return originalName; // 今の名前のまま終了させる
+        }
 
         String fileHash = mediaService.calculateFileHash(file);
         if (fileHash == null) {
@@ -49,7 +61,7 @@ public class DuplicateCheckService {
                     log.info("[FOLDER CREATED] Created duplicates directory at: {}", duplicateDir);
                 }
 
-                Path targetPath = duplicateDir.resolve(file.getName());
+                Path targetPath = duplicateDir.resolve(originalName);
                 Files.move(file.toPath(), targetPath, StandardCopyOption.REPLACE_EXISTING);
 
                 log.info("[FILE MOVED] Successfully moved duplicate file to: {}", targetPath);
@@ -63,25 +75,16 @@ public class DuplicateCheckService {
         } else {
             log.info("[NEW FILE] No duplicates found. Proceeding with auto-rename.");
 
-            // 1. 撮影日時を抜き出す
             Date shotAt = mediaService.getPhotoCreationDate(file);
             String baseFileName;
-            String extension = "";
 
-            // ファイル名から拡張子（.jpgなど）を切り離す
-            String originalName = file.getName();
-            int dotIndex = originalName.lastIndexOf('.');
-            if (dotIndex >= 0) {
-                extension = originalName.substring(dotIndex); // 例: ".jpg"
-            }
-
-            // 2. ⚡リネームのベース名を「yyyyMMddHHmmss」にする（無ければ元の名前をそのまま使用）
+            // ⚡撮影日時が抜けたら「yyyyMMddHHmmss」にする。無ければ「unknown_元の名前」の迷子ルートへ
             if (shotAt != null) {
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
-                baseFileName = sdf.format(shotAt); // 例: "20050228124729"
+                baseFileName = sdf.format(shotAt);
             } else {
-                log.warn("[WARN] Could not determine creation date. Using original name as base.");
-                baseFileName = dotIndex >= 0 ? originalName.substring(0, dotIndex) : originalName;
+                log.warn("[WARN] Could not determine creation date. Route to UNKNOWN file name.");
+                baseFileName = "unknown_" + baseName;
             }
 
             try {
@@ -89,26 +92,23 @@ public class DuplicateCheckService {
                 String finalFileName = baseFileName + extension;
                 Path targetPath = Path.of(parentDir, finalFileName);
 
-                // 3. ⚡【安全連番ループ機能】もし同名ファイルがすでに存在する場合、空く番号（_1, _2...）を探す
                 int count = 1;
                 while (Files.exists(targetPath)) {
-                    finalFileName = baseFileName + "_" + count + extension; // 例: "20050228124729_1.jpg"
+                    finalFileName = baseFileName + "_" + count + extension;
                     targetPath = Path.of(parentDir, finalFileName);
                     count++;
                 }
 
-                // 実際にパソコンの物理ファイルの名前を書き換える
                 Files.move(file.toPath(), targetPath);
                 log.info("[FILE RENAMED] Successfully renamed file to: {}", finalFileName);
 
-                // MySQLへは「連番を考慮した最終的な新しい名前」で保存！
                 MediaFile newMediaFile = new MediaFile();
                 newMediaFile.setFileName(finalFileName);
                 newMediaFile.setFileHash(fileHash);
                 newMediaFile.setShotAt(shotAt);
 
-                MediaFile saved = mediaFileRepository.save(newMediaFile);
-                log.info("[SUCCESS] Saved to MySQL. Assigned ID: {}", saved.getId());
+                mediaFileRepository.save(newMediaFile);
+                log.info("[SUCCESS] Saved to MySQL.");
                 log.info("------------------------------------------------------");
                 return finalFileName;
 

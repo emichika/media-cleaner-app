@@ -3,6 +3,8 @@ package com.emichika.mediacleaner;
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.metadata.Metadata;
 import com.drew.metadata.exif.ExifSubIFDDirectory;
+import com.drew.metadata.mov.QuickTimeDirectory;
+import com.drew.metadata.mp4.Mp4Directory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -16,22 +18,46 @@ import java.util.Date;
 public class MediaService {
 
     /**
-     * Extracts the photo creation date from the EXIF metadata.
+     * 画像(JPEG/HEIC)や動画(MP4/MOV)から撮影日時・作成日時を引っこ抜くマルチメソッド
      */
     public Date getPhotoCreationDate(File file) {
         try {
+            // ImageMetadataReaderは賢いので、ファイルの拡張子を見て自動で動画か写真かを判別してくれます
             Metadata metadata = ImageMetadataReader.readMetadata(file);
-            ExifSubIFDDirectory directory = metadata.getFirstDirectoryOfType(ExifSubIFDDirectory.class);
 
-            if (directory != null) {
-                Date date = directory.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
+            // 1. 【写真ルート】通常のデジカメ写真(JPEG)やiPhoneの写真(HEIC)の場合
+            ExifSubIFDDirectory exifDir = metadata.getFirstDirectoryOfType(ExifSubIFDDirectory.class);
+            if (exifDir != null) {
+                Date date = exifDir.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
                 if (date != null) {
+                    log.info("[METADATA] Found EXIF creation date: {}", date);
                     return date;
                 }
             }
-            log.warn("[WARN] Original date/time not found in EXIF tags: {}", file.getName());
+
+            // 2. 【標準動画ルート】MP4動画の場合
+            Mp4Directory mp4Dir = metadata.getFirstDirectoryOfType(Mp4Directory.class);
+            if (mp4Dir != null) {
+                Date date = mp4Dir.getDate(Mp4Directory.TAG_CREATION_TIME);
+                if (date != null) {
+                    log.info("[METADATA] Found MP4 creation date: {}", date);
+                    return date;
+                }
+            }
+
+            // 3. 【Apple動画ルート】iPhoneのMOV動画などの場合
+            QuickTimeDirectory qkDir = metadata.getFirstDirectoryOfType(QuickTimeDirectory.class);
+            if (qkDir != null) {
+                Date date = qkDir.getDate(QuickTimeDirectory.TAG_CREATION_TIME);
+                if (date != null) {
+                    log.info("[METADATA] Found QuickTime(MOV) creation date: {}", date);
+                    return date;
+                }
+            }
+
+            log.warn("[WARN] Creation date/time not found in metadata for file: {}", file.getName());
         } catch (Exception e) {
-            log.error("[ERROR] Failed to analyze image metadata: ", e);
+            log.error("[ERROR] Failed to analyze media metadata for: " + file.getName(), e);
         }
         return null;
     }
