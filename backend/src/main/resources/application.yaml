@@ -11,7 +11,7 @@ spring:
   # ⚡ データベースを自動で組み立てる魔法の設定
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create # 一時的に「create」に変えます
     show-sql: true # 実行されたSQLを黒い画面（ログ）に見せる設定
   servlet:
     multipart:
